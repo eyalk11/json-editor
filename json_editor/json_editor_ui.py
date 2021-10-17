@@ -12,6 +12,9 @@ import time
 import collections
 
 from Qt import QtGui, QtCore, QtWidgets, QtCompat
+from PySide2.QtCore import QFile
+from PySide2.QtUiTools import QUiLoader
+import importlib
 
 """
 QT UTILS BEGIN
@@ -23,8 +26,8 @@ def get_top_window():
     try:
         from maya import OpenMayaUI as omui
         maya_main_window_ptr = omui.MQtUtil().mainWindow()
-        top_window = QtCompat.wrapInstance(long(maya_main_window_ptr), QtWidgets.QWidget)
-    except ImportError, e:
+        top_window = QtCompat.wrapInstance(int(maya_main_window_ptr), QtWidgets.QWidget)
+    except ImportError as e:
         pass
     return top_window
 
@@ -46,8 +49,9 @@ def load_ui_type(uifile):
     :return:
     """
     import xml.etree.ElementTree as ElementTree
-    from cStringIO import StringIO
+    from io import StringIO
 
+    loader = QUiLoader()
     parsed = ElementTree.parse(uifile)
     widget_class = parsed.find('widget').get('class')
     form_class = parsed.find('class').text
@@ -63,7 +67,7 @@ def load_ui_type(uifile):
 
         pysideuic.compileUi(f, o, indent=0)
         pyc = compile(o.getvalue(), '<string>', 'exec')
-        exec(pyc) in frame
+        exec((pyc), frame)
 
         # Fetch the base_class and form class based on their type in
         # the xml from designer
@@ -79,14 +83,14 @@ QT UTILS END
 
 # Tool
 from json_editor import json_editor_utils as tool_utils
-reload(tool_utils)
+importlib.reload(tool_utils)
 
 DEVELOPMENT_MODE = False
 TESTING_JSON = r"C:\temp\testing.json"
 
 # Load UI
 ui_file_main = os.path.join(os.path.dirname(__file__), "ui", "json_editor_ui.ui")
-pform_main, pbase_main = load_ui_type(ui_file_main)
+#pform_main, pbase_main = load_ui_type(ui_file_main)
 
 
 class TOOL_CONSTANTS:
@@ -135,11 +139,11 @@ class HelperMessageOverlay(QtWidgets.QWidget):
         painter.setPen(QtGui.QPen(QtCore.Qt.NoPen))
 
 
-class JSONEditorWindow(pform_main, pbase_main):
+class JSONEditorWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=get_top_window()):
-        delete_window(object_to_delete=self)
+        #delete_window(object_to_delete=self)
         super(JSONEditorWindow, self).__init__(parent)
-        self.setupUi(self)
+        self.load_ui() #.setupUi(self)
         self.ui_parent = parent
 
         self.HelperMessageOverlay = HelperMessageOverlay(self.main_tree)
@@ -150,11 +154,22 @@ class JSONEditorWindow(pform_main, pbase_main):
         self.setup_connections()
         self.last_font_change_time = 1
 
-        if DEVELOPMENT_MODE:
-            self.set_json_path(path=TESTING_JSON)
-
         self.status_message("Ready")
+    def load_ui(self):
+        loader = QUiLoader()
 
+        #path = os.fspath(Path(__file__).resolve().parent / "mainwindow.ui")
+        ui_file = QFile(ui_file_main)
+        ui_file.open(QFile.ReadOnly)
+
+        wind= loader.load(ui_file, None)
+        import copy
+
+        self.__dict__.update(wind.__dict__) #because that is how it was written...
+        self.wind=wind
+
+        ui_file.close()
+        self.setCentralWidget(self.wind)
     #  -------------------------------------------------- UI Setup --------------------------------------------------
     def setup_connections(self):
         # Buttons and Widgets
@@ -260,7 +275,7 @@ class JSONEditorWindow(pform_main, pbase_main):
                 menu.addSeparator()
                 continue
 
-            for action_title, action_command in action.items():
+            for action_title, action_command in list(action.items()):
                 atn = menu.addAction(action_title)
                 atn.triggered.connect(action_command)
 
@@ -297,7 +312,7 @@ class JSONEditorWindow(pform_main, pbase_main):
                 text = event.mimeData().text()
                 json_data = json.loads(text, object_pairs_hook=collections.OrderedDict)
                 self.load_json_data(json_data=json_data)
-            except ValueError, e:
+            except ValueError as e:
                 self.status_message("No JSON serializable data could be read from string")
 
     def resizeEvent(self, event):
@@ -431,7 +446,7 @@ class JSONEditorWindow(pform_main, pbase_main):
             if get_data_type(selected_item) not in tk.CHILD_ALLOWED:
                 return
 
-            for key, val in all_data.items():
+            for key, val in list(all_data.items()):
 
                 new_tree = self.create_data_tree(data=val, parent_item=selected_item)
 
@@ -441,7 +456,7 @@ class JSONEditorWindow(pform_main, pbase_main):
 
             fix_list_indices(selected_item)
 
-        self.status_message("Pasted: {} item(s)".format(len(all_data.keys())))
+        self.status_message("Pasted: {} item(s)".format(len(list(all_data.keys()))))
 
     #  -------------------------------------------------- JSON Path ------------------------------------------------
 
@@ -544,7 +559,7 @@ class JSONEditorWindow(pform_main, pbase_main):
             parent_item.setFlags(parent_item.flags() | QtCore.Qt.ItemIsEditable)
             parent_item.setData(tk.TYPE_FIELD, QtCore.Qt.DisplayRole, tk.DT_DICT)
 
-            for key, val in data.items():
+            for key, val in list(data.items()):
                 self.create_data_tree(master_key=key, data=val, parent_item=parent_item)
 
         elif isinstance(data, (list, tuple)):
@@ -555,7 +570,7 @@ class JSONEditorWindow(pform_main, pbase_main):
             for i, sub_val in enumerate(data):
                 self.create_data_tree(master_key="[{}]".format(i), data=sub_val, parent_item=parent_item)
 
-        elif isinstance(data, (str, unicode, float, int)):
+        elif isinstance(data, (str, float, int)):
             parent_item = create_new_item(key=master_key, data=data, data_type=type(data).__name__, parent_item=parent_item)
 
         self.HelperMessageOverlay.setVisible(False)
@@ -987,11 +1002,16 @@ def fix_list_indices(parent_item):
 #  --------------------------------------------------- Main --------------------------------------------------
 
 def main():
-    return JSONEditorWindow()
+    return JSONEditorWindow(None)
 
 
 if __name__ == '__main__':
-    main()
+    #from Qt.QtWidgets import QApplication
+    app = QtWidgets.QApplication([])
+    jw=main()
+    jw.show()
+    a=1
+    sys.exit(app.exec_())
 
 """
 
