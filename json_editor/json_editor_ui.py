@@ -11,9 +11,9 @@ import json
 import time
 import collections
 
-from Qt import QtGui, QtCore, QtWidgets, QtCompat
-from PySide2.QtCore import QFile
-from PySide2.QtUiTools import QUiLoader
+from PySide6 import QtGui, QtCore, QtWidgets
+from PySide6.QtCore import QFile, SIGNAL, Signal
+from PySide6.QtUiTools import QUiLoader
 import importlib
 
 """
@@ -61,7 +61,7 @@ def load_ui_type(uifile):
         frame = {}
 
         try:
-            import pyside2uic as pysideuic
+            import PySide6uic as pysideuic
         except ImportError:
             import pysideuic as pysideuic
 
@@ -82,7 +82,11 @@ QT UTILS END
 
 
 # Tool
-from json_editor import json_editor_utils as tool_utils
+try:
+    from json_editor import json_editor_utils as tool_utils
+except:
+    import  json_editor_utils as tool_utils
+
 importlib.reload(tool_utils)
 
 DEVELOPMENT_MODE = False
@@ -120,7 +124,7 @@ class HelperMessageOverlay(QtWidgets.QWidget):
         super(HelperMessageOverlay, self).__init__(parent)
 
         palette = QtGui.QPalette(self.palette())
-        palette.setColor(palette.Background, QtCore.Qt.transparent)
+        #palette.setColor(palette, QtCore.Qt.)
 
         self.font_size = 13
         self.empty_json_message = "Drag and drop a JSON file, \n" \
@@ -140,6 +144,7 @@ class HelperMessageOverlay(QtWidgets.QWidget):
 
 
 class JSONEditorWindow(QtWidgets.QMainWindow):
+    onCloseEvent =Signal(int)
     def __init__(self, parent=get_top_window()):
         #delete_window(object_to_delete=self)
         super(JSONEditorWindow, self).__init__(parent)
@@ -148,13 +153,15 @@ class JSONEditorWindow(QtWidgets.QMainWindow):
 
         self.HelperMessageOverlay = HelperMessageOverlay(self.main_tree)
 
-        self.show()
+        #self.show()
 
         self.setup_extra_ui()
         self.setup_connections()
         self.last_font_change_time = 1
 
         self.status_message("Ready")
+    def closeEvent(self, event):
+        self.onCloseEvent.emit(1)
     def load_ui(self):
         loader = QUiLoader()
 
@@ -176,8 +183,11 @@ class JSONEditorWindow(QtWidgets.QMainWindow):
         self.LE_json_file.textEdited.connect(self.set_json_path)
         self.BTN_browse_file.clicked.connect(self.set_json_path)
         self.BTN_clone.clicked.connect(self.clone_selected_item)
-        self.BTN_rename.clicked.connect(self.rename_selected_items)
 
+        self.main_tree.setAcceptDrops(True)
+        self.main_tree.setDragEnabled(True)
+        self.main_tree.dropEvent = self.dropEvent      #.connect(self.dragEnterEvent)
+        self.main_tree.dragEnterEvent = self.dragEnterEvent #.connect(self.dragEnterEvent)
         self.main_tree.header().sectionResized.connect(self.reset_header)
 
         # File menu
@@ -192,6 +202,7 @@ class JSONEditorWindow(QtWidgets.QMainWindow):
         self.actionCopy.triggered.connect(self.copy_selected_to_clipboard)
         self.actionPaste.triggered.connect(self.paste_data_from_clipboard)
         self.actionDelete.triggered.connect(self.delete_selected_items)
+        self.actionDelete.setShortcuts(["Del", "-"])
 
         self.actionCreate_New_Item.triggered.connect(lambda: self.create_new_of_type(type_from_majority=True))
         self.actionMove_Up.triggered.connect(lambda: self.reorder_item(-1))
@@ -229,6 +240,9 @@ class JSONEditorWindow(QtWidgets.QMainWindow):
         self.reset_header()
 
         self.main_tree.viewport().installEventFilter(self)
+
+        self.BTN_Save.pressed.connect(self.save_data_and_close)
+        self.BTN_discard.pressed.connect(self.close)
 
         # self.main_tree.collapseAll()
         # header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
@@ -310,10 +324,14 @@ class JSONEditorWindow(QtWidgets.QMainWindow):
         else:
             try:
                 text = event.mimeData().text()
-                json_data = json.loads(text, object_pairs_hook=collections.OrderedDict)
-                self.load_json_data(json_data=json_data)
+                self.loadJsonFile(text)
             except ValueError as e:
                 self.status_message("No JSON serializable data could be read from string")
+
+    def loadJsonFile(self, filename):
+
+        json_data = json.loads(filename, object_pairs_hook=collections.OrderedDict)
+        self.load_json_data(json_data=json_data)
 
     def resizeEvent(self, event):
         self.HelperMessageOverlay.resize(event.size())
@@ -468,7 +486,7 @@ class JSONEditorWindow(QtWidgets.QMainWindow):
             return
 
         old_path = self.LE_json_file.text()
-        path = path.replace("\\", "/")
+        #path = path.replace("\\", "/")
         self.LE_json_file.setText(path)
 
         if read_file:
@@ -576,6 +594,9 @@ class JSONEditorWindow(QtWidgets.QMainWindow):
         self.HelperMessageOverlay.setVisible(False)
 
         return parent_item
+    def save_data_and_close(self):
+        self.save_data()
+        self.close()
 
     def save_data(self, file_prompt=False):
         """
@@ -597,10 +618,10 @@ class JSONEditorWindow(QtWidgets.QMainWindow):
             if not output_path:
                 return
 
-            output_path = output_path.replace("\\", "/")
+            #output_path = output_path.replace("\\", "/")
 
-            if DEVELOPMENT_MODE:
-                output_path = output_path.replace(".", "_TEMP.") if "_TEMP" not in output_path else output_path
+            #if DEVELOPMENT_MODE:
+            #    output_path = output_path.replace(".", "_TEMP.") if "_TEMP" not in output_path else output_path
 
             self.set_json_path(path=output_path, read_file=False)
             self.status_message("Saved: {}".format(output_path))
@@ -645,7 +666,7 @@ class JSONEditorWindow(QtWidgets.QMainWindow):
             if get_data_type(new_item.parent()) in tk.LIST_TYPES:
                 fix_list_indices(new_item.parent())
 
-        self.rename_selected_items()
+        #self.rename_selected_items()
         self.status_message("Cloned: {} item(s)".format(len(new_items)))
 
     def rename_selected_items(self):
@@ -916,9 +937,12 @@ def convert_data_type(data, data_type):
         except ValueError:
             data = "".join([s for s in str(data) if not s.isalpha()])  # remove letters
 
-    eval_statement = "{}('{}')".format(data_type, data)
-    data = eval(eval_statement)
-
+    try:
+        eval_statement = "{}('{}')".format(data_type, data)
+        data = eval(eval_statement)
+    except Exception as e:
+        print('eval exp ',e)
+        return data
     return data
 
 
