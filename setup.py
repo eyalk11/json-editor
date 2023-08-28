@@ -4,11 +4,11 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="json-editor",
-    version="1.0.0",
-    author="Richard Brenick",
-    author_email="RichardBrenick@gmail.com",
-    description="maya tool template",
+    name="json-editor-pyside6",
+    version="1.0.1",
+    author="Richard Brenick, Eyal Karni",
+    author_email="RichardBrenick@gmail.com, eyalk5@gmail.com",
+    description="Visual JSON Editor written in Qt",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/rBrenick/json-editor",
