@@ -11,7 +11,7 @@ setuptools.setup(
     description="Visual JSON Editor written in Qt",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/rBrenick/json-editor",
+    url="https://github.com/eyalk11/json-editor-pyside6",
     packages=setuptools.find_packages(),
     package_data={'': ['*.*']},
     classifiers=[
@@ -21,7 +21,7 @@ setuptools.setup(
     ],
     
     install_requires=[
-    "Qt.py",
+    "PySide6",
     ]
 )
 
