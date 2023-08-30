@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="json-editor-pyside6",
-    version="1.0.1",
+    version="1.0.2",
     author="Richard Brenick, Eyal Karni",
     author_email="RichardBrenick@gmail.com, eyalk5@gmail.com",
     description="Visual JSON Editor written in Qt",
